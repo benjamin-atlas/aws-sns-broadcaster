@@ -1,0 +1,9 @@
+{
+  "Records": [
+    {
+      "Sns": {
+        "Message": "Hello, this is a test message."
+      }
+    }
+  ]
+}
