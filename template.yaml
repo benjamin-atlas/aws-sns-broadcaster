@@ -13,7 +13,7 @@ Resources:
       MemorySize: 512
       Environment:
         Variables:
-          SNS_TOPIC_ARN: !Sub "arn:aws:sns:us-east-1:${AWS::AccountId}:BroadcastTopic"
+          SNS_TOPIC_ARN: !Ref BroadcastTopic
       Policies:
         - SNSPublishPolicy:
           TopicName: !Ref BroadcastTopic
@@ -54,6 +54,12 @@ Resources:
       - Statement:
         - Effect: Allow
           Action:
+          - 'sqs:ReceiveMessage'
+          Resource:
+          - !GetAtt BroadcastQueue.Arn
+      - Statement:
+        - Effect: Allow
+          Action:
           - 'execute-api:ManageConnections'
           Resource:
           - !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BroadcastWebSocketApi}/*'
@@ -61,6 +67,11 @@ Resources:
         Variables:
           CONNECTION_LOG_TABLE: !Ref BroadcastConnectionLogTable
           WEBSOCKET_API_ENDPOINT: !Sub "https://${BroadcastWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt BroadcastQueue.Arn
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -233,6 +244,29 @@ Resources:
   BroadcastQueue:
     Type: 'AWS::SQS::Queue'
 
+  BcSqsPolicy: 
+    Type: AWS::SQS::QueuePolicy
+    Properties: 
+      Queues: 
+        - !Ref BroadcastQueue
+      PolicyDocument: 
+        Statement: 
+          - 
+            Action: 
+              - "SQS:SendMessage" 
+              - "SQS:ReceiveMessage"
+            Effect: "Allow"
+            Resource: !GetAtt BroadcastQueue.Arn
+            Principal:
+              Service: sns.amazonaws.com 
+
+  BcSnsToSqsSubscription:
+    Type: 'AWS::SNS::Subscription'
+    Properties:
+      Protocol: 'sqs'
+      TopicArn: !Ref BroadcastTopic
+      Endpoint: !GetAtt BroadcastQueue.Arn
+
   BroadcastConnectionLogTable:
     Type: 'AWS::DynamoDB::Table'
     Properties:
@@ -267,7 +301,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: sns:Publish
-                Resource: !Sub "arn:aws:sns:us-east-1:${AWS::AccountId}:BroadcastTopic"
+                Resource: !Ref BroadcastTopic
 
 Outputs:
   BroadcastApiEndpoint:
@@ -280,3 +314,6 @@ Outputs:
     Value: !Sub "wss://${BroadcastWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
     Export:
       Name: !Sub "${AWS::StackName}-BroadcastWsApiEndpoint"
+  BroadcastTopicArn:
+    Value: !Ref BroadcastTopic
+    Description: ARN of the Broadcast SNS topic

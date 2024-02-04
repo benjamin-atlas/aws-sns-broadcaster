@@ -1,9 +1,9 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyResult, SQSEvent } from 'aws-lambda';
 import { ApiGatewayManagementApi } from 'aws-sdk';
 import Logger from './utils/Logger';
 import * as AWS from 'aws-sdk';
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export const handler = async (event: SQSEvent): Promise<APIGatewayProxyResult> => {
     try {
         const tableName = process.env.CONNECTION_LOG_TABLE;
         if (!tableName) {
@@ -11,16 +11,14 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         }
 
         let activeConnectionRecords: AWS.DynamoDB.ItemList;
-        let broadcastMessage: string;
+        let broadcastMessages: string[];
         try {
             Logger.appendLog(`Passed in value: ${JSON.stringify(event)}`);
-            if (event.body) {
-                broadcastMessage = JSON.parse(event.body).message
+            if (event.Records && event.Records.length > 0) {
+                broadcastMessages = event.Records.map(record => JSON.parse(record.body)?.Message);
             } else {
-                throw new Error(`Event property \"body\" was not present in the request. Will not broadcast. Event object details:\n${JSON.stringify(event)}`);
+                throw new Error(`Event property [\"Records\"] was not present in the SNS event or was empty. Will not broadcast. Event object details:\n${JSON.stringify(event)}`);
             }
-
-            Logger.appendLog(broadcastMessage);
         } catch (error: any) {
             Logger.appendError(error);
             throw new Error(`Could not parse message passed into broadcaster. Message:\n${JSON.stringify(event)}`);
@@ -50,14 +48,16 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     
             let broadcastPromises: (Promise<{$response: AWS.Response<{}, AWS.AWSError>}> | Promise<void>)[] = activeConnectionRecords.map(
                 async (activeConnection: AWS.DynamoDB.AttributeMap) => {
-                    try {
-                        await apigatewaymanagementapi.postToConnection({ 
-                            ConnectionId: activeConnection.connection_id as string, 
-                            Data: JSON.stringify(broadcastMessage)
-                        }).promise()
-                    } catch (error: any) {
-                        Logger.appendError(error);
-                        Logger.appendLog(`Could not send broadcast to [${activeConnection.connection_id}]. Skipping...`)
+                    for (let broadcastMessage of broadcastMessages) {
+                        try {
+                            await apigatewaymanagementapi.postToConnection({ 
+                                ConnectionId: activeConnection.connection_id as string, 
+                                Data: JSON.stringify(broadcastMessage)
+                            }).promise()
+                        } catch (error: any) {
+                            Logger.appendError(error);
+                            Logger.appendLog(`Could not send broadcast to [${activeConnection.connection_id}]. Skipping...`)
+                        }
                     }
                 }
             );
