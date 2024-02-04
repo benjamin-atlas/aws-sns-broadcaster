@@ -45,10 +45,22 @@ Resources:
       Policies:
       - DynamoDBCrudPolicy:
           TableName: !Ref BroadcastConnectionLogTable
+      - Statement:
+        - Effect: Allow
+          Action:
+          - 'execute-api:Invoke'
+          Resource:
+          - !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BroadcastWebSocketApi}/*'
+      - Statement:
+        - Effect: Allow
+          Action:
+          - 'execute-api:ManageConnections'
+          Resource:
+          - !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BroadcastWebSocketApi}/*'
       Environment:
         Variables:
           CONNECTION_LOG_TABLE: !Ref BroadcastConnectionLogTable
-          WEBSOCKET_API_ENDPOINT: !Sub "wss://${BroadcastWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+          WEBSOCKET_API_ENDPOINT: !Sub "https://${BroadcastWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
