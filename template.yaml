@@ -34,12 +34,206 @@ Resources:
         EntryPoints: 
         - app.ts
 
+  BroadcastFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: app.handler
+      Runtime: nodejs18.x
+      CodeUri: broadcast/
+      Timeout: 30
+      MemorySize: 512
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName: !Ref BroadcastConnectionLogTable
+      Environment:
+        Variables:
+          CONNECTION_LOG_TABLE: !Ref BroadcastConnectionLogTable
+          WEBSOCKET_API_ENDPOINT: !Sub "wss://${BroadcastWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2020"
+        Sourcemap: true
+        EntryPoints: 
+        - app.ts
+
+  OnBroadcastRoute:
+    Type: 'AWS::ApiGatewayV2::Route'
+    Properties:
+      ApiId: !Ref BroadcastWebSocketApi
+      RouteKey: broadcast
+      AuthorizationType: NONE
+      OperationName: BroadcastRoute
+      Target: !Join
+        - '/'
+        - - integrations
+          - !Ref OnBroadcastIntegration
+
+  OnBroadcastIntegration:
+    Type: 'AWS::ApiGatewayV2::Integration'
+    Properties:
+      ApiId: !Ref BroadcastWebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BroadcastFunction.Arn}/invocations
+
+  BroadcastFunctionResourcePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      Principal: apigateway.amazonaws.com
+      FunctionName: !Ref BroadcastFunction
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BroadcastWebSocketApi}/*'
+
+  ConnectFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: app.handler
+      Runtime: nodejs18.x
+      CodeUri: connect/
+      Timeout: 30
+      MemorySize: 512
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName: !Ref BroadcastConnectionLogTable
+      Environment:
+        Variables:
+          CONNECTION_LOG_TABLE: !Ref BroadcastConnectionLogTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2020"
+        Sourcemap: true
+        EntryPoints: 
+        - app.ts
+
+  OnConnectRoute:
+    Type: 'AWS::ApiGatewayV2::Route'
+    Properties:
+      ApiId: !Ref BroadcastWebSocketApi
+      RouteKey: $connect
+      AuthorizationType: NONE
+      OperationName: ConnectRoute
+      Target: !Join
+        - '/'
+        - - integrations
+          - !Ref OnConnectIntegration
+
+  OnConnectIntegration:
+    Type: 'AWS::ApiGatewayV2::Integration'
+    Properties:
+      ApiId: !Ref BroadcastWebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ConnectFunction.Arn}/invocations
+
+  ConnectFunctionResourcePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      Principal: apigateway.amazonaws.com
+      FunctionName: !Ref ConnectFunction
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BroadcastWebSocketApi}/*'
+
+  DisconnectFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: app.handler
+      Runtime: nodejs18.x
+      CodeUri: disconnect/
+      Timeout: 30
+      MemorySize: 512
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName: !Ref BroadcastConnectionLogTable
+      Environment:
+        Variables:
+          CONNECTION_LOG_TABLE: !Ref BroadcastConnectionLogTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2020"
+        Sourcemap: true
+        EntryPoints: 
+        - app.ts
+
+  OnDisconnectRoute:
+    Type: 'AWS::ApiGatewayV2::Route'
+    Properties:
+      ApiId: !Ref BroadcastWebSocketApi
+      RouteKey: $disconnect
+      AuthorizationType: NONE
+      OperationName: DisconnectRoute
+      Target: !Join
+        - '/'
+        - - integrations
+          - !Ref OnDisconnectIntegration
+
+  OnDisconnectIntegration:
+    Type: 'AWS::ApiGatewayV2::Integration'
+    Properties:
+      ApiId: !Ref BroadcastWebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DisconnectFunction.Arn}/invocations
+
+  DisconnectFunctionResourcePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      Principal: apigateway.amazonaws.com
+      FunctionName: !Ref DisconnectFunction
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BroadcastWebSocketApi}/*'
+
   BroadcastApi:
     Type: 'AWS::Serverless::Api'
     Properties:
       StageName: prod
       Auth:
         ApiKeyRequired: false
+  
+  BroadcastWebSocketApi:
+    Type: 'AWS::ApiGatewayV2::Api'
+    Properties:
+      Name: BroadcastWebSocketApi
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: "$request.body.action"
+
+  BcWsApiDeployment:
+    Type: 'AWS::ApiGatewayV2::Deployment'
+    DependsOn:
+      - OnBroadcastRoute
+      - OnConnectRoute
+      - OnDisconnectRoute
+    Properties:
+      ApiId: !Ref BroadcastWebSocketApi
+
+  BcWsApiStage:
+    Type: 'AWS::ApiGatewayV2::Stage'
+    Properties:
+      ApiId: !Ref BroadcastWebSocketApi
+      DeploymentId: !Ref BcWsApiDeployment
+      StageName: prod
+
+  BroadcastTopic:
+    Type: 'AWS::SNS::Topic'
+
+  BroadcastQueue:
+    Type: 'AWS::SQS::Queue'
+
+  BroadcastConnectionLogTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: broadcast-connection-log
+      AttributeDefinitions:
+        - AttributeName: connection_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: connection_id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
 
   BcPubLambdaRole:
     Type: 'AWS::IAM::Role'
@@ -69,3 +263,8 @@ Outputs:
     Value: !Sub "https://${BroadcastApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
     Export:
       Name: !Sub "${AWS::StackName}-BroadcastApiEndpoint"
+  BroadcastWsApiEndpoint:
+    Description: "WebSocket API endpoint"
+    Value: !Sub "wss://${BroadcastWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+    Export:
+      Name: !Sub "${AWS::StackName}-BroadcastWsApiEndpoint"
