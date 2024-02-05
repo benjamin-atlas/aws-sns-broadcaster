@@ -3,7 +3,7 @@ import { ApiGatewayManagementApi } from 'aws-sdk';
 import Logger from './utils/Logger';
 import * as AWS from 'aws-sdk';
 
-export const handler = async (event: SQSEvent): Promise<APIGatewayProxyResult> => {
+export default async (event: SQSEvent): Promise<APIGatewayProxyResult> => {
     try {
         const tableName = process.env.CONNECTION_LOG_TABLE;
         if (!tableName) {

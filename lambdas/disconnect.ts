@@ -2,7 +2,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import Logger from './utils/Logger';
 import * as AWS from 'aws-sdk';
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export default async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     try {
         Logger.appendLog(`Disconnect happens. Connection ID: ${event.requestContext.connectionId ?? ""}`);
 

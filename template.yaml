@@ -5,10 +5,10 @@ Resources:
   BcPubLambdaFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
-      Handler: app.handler
+      Handler: broadcast-pub.default
       Runtime: nodejs18.x
       Role: !GetAtt BcPubLambdaRole.Arn
-      CodeUri: broadcast-pub/
+      CodeUri: lambdas/
       Timeout: 30
       MemorySize: 512
       Environment:
@@ -32,14 +32,14 @@ Resources:
         Target: "es2020"
         Sourcemap: true
         EntryPoints: 
-        - app.ts
+        - broadcast-pub.ts
 
   BroadcastFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
-      Handler: app.handler
+      Handler: broadcast.default
       Runtime: nodejs18.x
-      CodeUri: broadcast/
+      CodeUri: lambdas/
       Timeout: 30
       MemorySize: 512
       Policies:
@@ -79,7 +79,7 @@ Resources:
         Target: "es2020"
         Sourcemap: true
         EntryPoints: 
-        - app.ts
+        - broadcast.ts
 
   OnBroadcastRoute:
     Type: 'AWS::ApiGatewayV2::Route'
@@ -111,9 +111,9 @@ Resources:
   ConnectFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
-      Handler: app.handler
+      Handler: connect.default
       Runtime: nodejs18.x
-      CodeUri: connect/
+      CodeUri: lambdas/
       Timeout: 30
       MemorySize: 512
       Policies:
@@ -129,7 +129,7 @@ Resources:
         Target: "es2020"
         Sourcemap: true
         EntryPoints: 
-        - app.ts
+        - connect.ts
 
   OnConnectRoute:
     Type: 'AWS::ApiGatewayV2::Route'
@@ -161,9 +161,9 @@ Resources:
   DisconnectFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
-      Handler: app.handler
+      Handler: disconnect.default
       Runtime: nodejs18.x
-      CodeUri: disconnect/
+      CodeUri: lambdas/
       Timeout: 30
       MemorySize: 512
       Policies:
@@ -179,7 +179,7 @@ Resources:
         Target: "es2020"
         Sourcemap: true
         EntryPoints: 
-        - app.ts
+        - disconnect.ts
 
   OnDisconnectRoute:
     Type: 'AWS::ApiGatewayV2::Route'

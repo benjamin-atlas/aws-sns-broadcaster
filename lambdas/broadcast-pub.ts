@@ -1,7 +1,7 @@
 import { APIGatewayEvent } from 'aws-lambda';
 import * as AWS from 'aws-sdk';
 
-export const handler = async (event: APIGatewayEvent): Promise<any> => {
+export default async (event: APIGatewayEvent): Promise<any> => {
     try {
         const sns = new AWS.SNS();
         const message = event.body;
