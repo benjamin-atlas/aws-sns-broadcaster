@@ -16,12 +16,37 @@ export default async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResul
                     throw new Error("No CONNECTION_LOG_TABLE name found in environment variables.");
                 }
 
-                await dynamoDB
-                    .delete({
-                        TableName: tableName,
-                        Key: { connection_id: event.requestContext.connectionId }
-                    })
-                    .promise();
+                const subsToDelete: any[] = (await dynamoDB.scan({
+                    TableName: tableName,
+                    FilterExpression: 'connection_id = :connectionId',
+                    ExpressionAttributeValues: {
+                        ':connectionId': event.requestContext.connectionId,
+                    },
+                }).promise()).Items ?? [];
+
+                if (subsToDelete.length === 0) {
+                    Logger.appendLog(`No subscriptions found for connection ID [${event.requestContext.connectionId}].`);
+
+                    return {
+                        statusCode: 200,
+                        body: JSON.stringify({
+                            message: '',
+                        }),
+                    };
+                }
+
+                Promise.all(subsToDelete.map(async (subToDelete: any) => {
+                    Logger.appendLog(`Removing subscription [${subToDelete.connection_id}] from ${tableName}. Sub object: ${JSON.stringify(subToDelete)}`);
+                    try {
+                        await dynamoDB.delete({
+                            TableName: tableName,
+                            Key: { connection_id: subToDelete.connection_id }
+                        }).promise();
+                    } catch (error: any) {
+                        Logger.appendError(error);
+                        Logger.appendLog(`Could not remove subscription [${subToDelete.connection_id}]. Skipping...`);
+                    }
+                }));
             } else {
                 Logger.appendLog(`No connection ID passed. Cannot remove from ${tableName}.`)
             }
